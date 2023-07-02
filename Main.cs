@@ -1,100 +1,47 @@
 ﻿using Kitchen;
-using KitchenLib;
-using KitchenLib.Utils;
-using KitchenLib.Event;
-using KitchenMods;
-using System.Reflection;
-using UnityEngine;
-using System;
-using Unity.Entities;
 using KitchenData;
-using KitchenPrepPingBlueprintCabinet.Menus;
+using KitchenMods;
+using PreferenceSystem;
+using Unity.Entities;
+using UnityEngine;
 
 // Namespace should have "Kitchen" in the beginning
 namespace KitchenPrepPingBlueprintCabinet
 {
-    public class Main : BaseMod
+    public class Main : IModInitializer
     {
-        // guid must be unique and is recommended to be in reverse domain name notation
-        // mod name that is displayed to the player and listed in the mods menu
-        // mod version must follow semver e.g. "1.2.3"
         public const string MOD_GUID = "IcedMilo.PlateUp.PrepPingBlueprintCabinet";
         public const string MOD_NAME = "PrepPingBlueprintCabinet";
-        public const string MOD_VERSION = "0.1.2";
-        public const string MOD_AUTHOR = "IcedMilo";
-        public const string MOD_GAMEVERSION = ">=1.1.1";
-        // Game version this mod is designed for in semver
-        // e.g. ">=1.1.1" current and all future
-        // e.g. ">=1.1.1 <=1.2.3" for all from/until
-
-        public Main() : base(MOD_GUID, MOD_NAME, MOD_AUTHOR, MOD_VERSION, MOD_GAMEVERSION, Assembly.GetExecutingAssembly()) { }
+        public const string MOD_VERSION = "0.1.3";
 
         public const string PING_BLUEPRINT_IN_CABINET_ID = "prepPingBluePrintInCabinet";
-        public const string PING_BLUEPRINT_IN_CABINET_INITIAL = "On";
-        public string PingBlueprintInCabinet;
-        public static readonly MenuPreference PingBlueprintInCabinetPreference = new MenuPreference(PING_BLUEPRINT_IN_CABINET_ID,
-                                                                                                    PING_BLUEPRINT_IN_CABINET_INITIAL,
-                                                                                                    "Ping Blueprint In Cabinet");
+        internal static PreferenceSystemManager PrefManager;
 
-        public bool ModEnabled = false;
+        public Main()
+        {
+        }
 
-        NewShowPingedCabinetInfo NewShowPingedCabinetInfoSystem = new NewShowPingedCabinetInfo();
-
-        protected override void OnPostActivate(Mod mod)
+        public void PostActivate(Mod mod)
         {
             LogWarning($"{MOD_GUID} v{MOD_VERSION} in use!");
-            PingBlueprintInCabinetPreference.Register(MOD_GUID);
-            PreferenceUtils.Load();
-            PingBlueprintInCabinet = PingBlueprintInCabinetPreference.Load(MOD_GUID);
-            ModEnabled = PingBlueprintInCabinet == "On" ? true : false;
-            SetupPreferences();
+
+            PrefManager = new PreferenceSystemManager(MOD_GUID, MOD_NAME);
+            PrefManager
+                .AddLabel("Ping Blueprint In Cabinet")
+                .AddOption<string>(
+                    PING_BLUEPRINT_IN_CABINET_ID,
+                    "On",
+                    new string[] { "Off", "On" },
+                    new string[] { "Off", "On" })
+                .AddSpacer()
+                .AddSpacer();
+
+            PrefManager.RegisterMenu(PreferenceSystemManager.MenuType.PauseMenu);
         }
 
-        protected override void OnInitialise()
-        {
-            base.OnInitialise();
-            try
-            {
-                World.AddSystem(NewShowPingedCabinetInfoSystem);
-            }
-            catch
-            {
-                LogInfo("Could not add system KitchenPrepPingBlueprintCabinet.NewShowPingedCabinetInfoSystem!");
-            }
-        }
+        public void PreInject() { }
 
-        protected override void OnUpdate()
-        {
-            try
-            {
-                ModEnabled = PingBlueprintInCabinetPreference.Load(MOD_GUID) == "On" ? true : false;
-                World.GetExistingSystem(typeof(ShowPingedCabinetInfo)).Enabled = !ModEnabled;
-                World.GetExistingSystem(typeof(NewShowPingedCabinetInfo)).Enabled = ModEnabled;
-            }
-            catch (NullReferenceException)
-            {
-            }
-        }
-        private void SetupPreferences()
-        {
-            ModsPreferencesMenu<MainMenuAction>.RegisterMenu(MOD_NAME, typeof(PrepPingBlueprintCabinetPreference<MainMenuAction>), typeof(MainMenuAction));
-            Events.PreferenceMenu_MainMenu_CreateSubmenusEvent += (s, args) =>
-            {
-                args.Menus.Add(typeof(PrepPingBlueprintCabinetPreference<MainMenuAction>), new PrepPingBlueprintCabinetPreference<MainMenuAction>(args.Container, args.Module_list));
-            };
-
-            //Setting Up For Pause Menu
-            ModsPreferencesMenu<PauseMenuAction>.RegisterMenu(MOD_NAME, typeof(PrepPingBlueprintCabinetPreference<PauseMenuAction>), typeof(PauseMenuAction));
-            Events.PreferenceMenu_PauseMenu_CreateSubmenusEvent += (s, args) =>
-            {
-                args.Menus.Add(typeof(PrepPingBlueprintCabinetPreference<PauseMenuAction>), new PrepPingBlueprintCabinetPreference<PauseMenuAction>(args.Container, args.Module_list));
-            };
-
-            Events.PreferencesSaveEvent += (s, args) =>
-            {
-                PingBlueprintInCabinet = PingBlueprintInCabinetPreference.Load(MOD_GUID);
-            };
-        }
+        public void PostInject() { }
 
         #region Logging
         // You can remove this, I just prefer a more standardized logging
@@ -109,7 +56,7 @@ namespace KitchenPrepPingBlueprintCabinet
 
 
     [UpdateBefore(typeof(ShowPingedApplianceInfo))]
-    public class NewShowPingedCabinetInfo : ShowPingedApplianceInfo
+    public class NewShowPingedCabinetInfo : ShowPingedApplianceInfo, IModSystem
     {
         private CBlueprintStore BlueprintStore;
 
